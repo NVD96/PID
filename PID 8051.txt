@@ -1,0 +1,431 @@
+;PV-->R2R3,SV-->R4R5
+LSPID: LCALL NSUB ;E=PV-SV--->R2R3
+MOV DPL,#ADDDR
+MOVX A,@DPTR
+JZ PEABS ;00(D) FF(E)
+LCALL NEG1
+PEABS: MOV A,R3 ;E ABS--->R6R7
+MOV R7,A
+MOV A,R2
+MOV R6,A
+JNB ACC.7,PEA
+LCALL NEG2 ;ABS(EI)-->R6R7
+PEA: MOV DPL,#ADDEH ;E ALARM
+MOVX A,@DPTR
+CLR C
+SUBB A,R7
+INC DPL
+MOVX A,@DPTR
+SUBB A,R6
+JNC ENOA
+SETB EALR
+SJMP PENORM
+ENOA: CLR EALR
+PENORM: MOV R0,#ADDICM
+MOVX A,@R0
+MOV R5,A
+INC R0
+MOVX A,@R0
+MOV R4,A
+LCALL NADD
+PESAVE: MOV R0,#ADDEI
+MOV A,R3
+MOVX @R0,A
+INC R0
+MOV A,R2
+MOVX @R0,A ;EI-->R2R3
+SPID1: MOV DPL,#ADDISEL ;I SEPARATE DPH=PID1
+MOVX A,@DPTR
+CLR C
+SUBB A,R7 ;ABS(EI)-->R6R7
+INC DPL
+MOVX A,@DPTR
+SUBB A,R6
+JNC SPI
+MOV R2,#00H
+MOV R3,#00H
+LJMP PID6
+SPI: MOV DPL,#ADDTi ;Ei--->R2R3
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+MOV R4,A
+LCALL DIV ;Ei/Ti-->R6R7
+MOV R2,#2H ;TS=1
+MOV R3,#00H
+LCALL MUL ;Ts*512*Ei/Ti-->R2R3
+MOV DPL,#ADDKp
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+MOV R4,A
+LCALL DIV ;KP*TS*EI/TI--->R6R7
+MOV R0,#ADDERR
+MOVX A,@R0
+ADD A,R7
+MOVX @R0,A
+INC R0
+MOVX A,@R0
+ADDC A,R6
+MOV R6,A
+ANL A,#81H
+JNB ACC.7,PID0
+ORL A,#0FEH
+PID0: MOVX @R0,A ;BACK 9 BIT -->Err
+MOV A,R6 ;FRONT 7 BIT -->R2R3(KP*Ei*Ts/Ti)
+MOV C,ACC.7
+RRC A
+MOV R2,#00H
+JB ACC.7,PID5
+MOV R3,A
+SJMP PID6
+PID5: ADD A,#1
+MOV R3,A
+JZ PID6
+MOV R2,#0FFH ;I-->R2R3
+PID6: MOV PIBUFH,R2
+MOV PIBUFL,R3
+CLR C
+MOV R0,#ADDEI1
+MOVX A,@R0
+MOV R5,A
+INC R0
+MOVX A,@R0
+MOV R4,A
+MOV R0,#ADDEI
+MOVX A,@R0
+SUBB A,R5
+MOV R3,A
+MOV TEMPBUFL,A
+INC R0
+MOVX A,@R0
+SUBB A,R4
+MOV R2,A ;DV-->R2R3
+MOV TEMPBUFH,A ;DV-->TEMPBUF
+MOV DPL,#ADDKp
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+MOV R4,A
+LCALL DIV ;Kp(Ei-Ei-1)--->R6R7
+MOV A,PIBUFL ;KP*(Ei-Ei-1)+KP*Ts*Ei/Ti-->R2R3
+ADD A,R7
+MOV PIBUFL,A
+MOV A,PIBUFH
+ADDC A,R6
+MOV PIBUFH,A
+MOV R3,PIBUFL
+MOV R2,PIBUFH
+MOV DPL,#ADDTD
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+ORL A,R5
+JZ PIDU0
+MOV DPL,#ADDFPV
+MOVX A,@DPTR
+JZ PIDP
+MOV R3,TEMPBUFL ;DEI--> R2R3
+MOV R2,TEMPBUFH
+SJMP PID7
+PIDU0: LJMP PIDU
+PIDP: CLR C ;DPV--->R2R3
+MOV R0,#ADDPV1
+MOVX A,@R0
+MOV R3,A
+INC R0
+MOVX A,@R0
+MOV R2,A
+MOV R0,#ADDPV
+MOVX A,@R0
+SUBB A,R3
+MOV R3,A
+INC R0
+MOVX A,@R0
+SUBB A,R2
+MOV R2,A
+MOV DPL,#ADDDR
+MOVX A,@DPTR
+JZ PID7
+LCALL NEG1
+PID7: MOV DPL,#ADDKp ;Kp-->R4R5
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+MOV R4,A
+PIDD: MOV R6,#4
+PIDD1: CLR C
+MOV A,R4
+RRC A
+MOV R4,A
+MOV A,R5
+RRC A
+MOV R5,A
+DJNZ R6,PIDD1
+LCALL DIV ;Kp*^Ei-->R6R7
+PIDD2: MOV R0,#ADDUD1 ;Udi-1
+MOVX A,@R0
+ADD A,R7
+MOV R3,A
+INC R0
+MOVX A,@R0
+ADDC A,R6
+MOV R2,A ;Udi-1+Kp*Kd*^Ei-->R2R3
+JNB OV,PID71
+JC PID72
+MOV R2,#7FH
+MOV R3,#0FFH
+SJMP PID71
+PID72: MOV R2,#80H
+MOV R3,#00H
+PID71: MOV DPL,#ADDTd
+MOVX A,@DPTR
+MOV R5,A
+INC DPL
+MOVX A,@DPTR
+MOV R4,A
+MOV A,#10H
+ADD A,R5
+MOV R5,A
+MOV A,#00H
+ADDC A,R4
+MOV R4,A
+LCALL DIV ;(Udi-1+Kp*Kd*^Ei)/(TD+KD)--->r6r7
+MOV DPL,#ADDTd
+MOVX A,@DPTR
+MOV R3,A
+INC DPL
+MOVX A,@DPTR
+MOV R2,A
+LCALL MUL ;UDI=Td*(Udi-1+Kp*Kd*^Ei)/(TD+KD)--->r2r3
+CLR C
+MOV R0,#ADDUD1
+MOVX A,@R0
+MOV R5,A
+MOV A,R3
+MOVX @R0,A
+INC R0
+MOVX A,@R0
+MOV R4,A
+MOV A,R2
+MOVX @R0,A
+LCALL NSUB ;^UDI-->R2R3
+MOV R5,PIBUFL ;^PI-->R4R5
+MOV R4,PIBUFH
+LCALL NADD ;^U=^UPI+^UD-->R2R3
+PIDU: MOV R0,#ADDU1
+MOVX A,@R0
+ADD A,R3
+MOV R3,A
+INC R0
+MOVX A,@R0
+ADDC A,R2
+MOV R2,A
+JNB ACC.7,PID20
+MOV R3,#00H ;LOWER U
+MOV R2,#00H
+SJMP PID3
+PID20: ANL A,#0F0H
+JZ PID3
+PID4: MOV R2,#0FH ;HEIGH U
+MOV R3,#0FFH
+PID3: MOV R0,#ADDOCM
+MOVX A,@R0
+MOV R5,A
+INC R0
+MOVX A,@R0
+MOV R4,A
+LCALL NADD
+PUL: MOV A,R2 ;LIMIT U-->0-1
+JNB ACC.7,PUL1
+MOV R3,#00H
+MOV R2,#00H
+SJMP PID9
+PUL1: ANL A,#0F0H
+JZ PID9
+MOV R2,#0FH
+MOV R3,#0FFH
+PID9: LCALL PMV
+MOV R0,#ADDU1 ;SAVE U1
+MOV A,R3
+MOVX @R0,A
+INC R0
+MOV A,R2
+MOVX @R0,A ;U1-->R2R3
+MOV R0,#ADDEI
+LCALL BFLOW
+MOV R0,#ADDPV
+LCALL BFLOW
+RET
+BFLOW: MOVX A,@R0
+MOV R5,A
+INC R0
+MOVX A,@R0
+MOV R4,A
+INC R0
+MOV A,R5
+MOVX @R0,A
+INC R0
+MOV A,R4
+MOVX @R0,A
+RET
+;-------------------------------
+//////////////////
+/////////////
+//////////////
+float caculator_PID(float temp, float KP,float KI,float KD)
+{ e2 = value - temp;
+e_sum = e1+ e2;
+e_del = e2 - e1;
+e1 = e2;
+duty = KP*e2 + KI*e_sum + KD*e_del;
+if (duty < 0) duty = 0;
+if (duty > 255)
+duty = 255;
+duty = 255;
+return duty;
+} 
+/////////////////////////
+///////////////////
+///////////////
+#include <16F886.h>
+#device * = 16 ADC = 10
+#fuses HS, NOPROTECT, NODEBUG, NOWDT
+#use delay(clock = 20M)
+#priority INT_TIMER0
+
+// control loop constants
+float Kp; // proportional gain
+float Ki; // integral gain
+float Kd; // differential gain
+
+// terms
+float Tp; // proportional term
+float Ti; // integral term
+float Td; // differential term
+
+// circular queue vars
+signed long ErrorHistory[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+int InputIdx = 0;
+int GetIdx;
+signed long PrevError;
+signed long RecError;
+
+signed long Error;
+signed long DeDt; // change in Error over time
+signed int32 ErrorSum = 0; // sum of Errors, for integral term
+signed long DesiredValue;
+
+int8 Power;
+volatile long Setpoint;
+float temp_float;
+
+void main(void)
+{
+    setup_adc(ADC_CLOCK_DIV_32);
+    setup_adc_ports(sAN0 | sAN1);
+    setup_timer_0(T0_INTERNAL | T0_DIV_1);
+    set_timer0(55536);    // interrupt interval 2ms
+    setup_timer_1(T1_INTERNAL | T1_DIV_BY_8);
+    set_timer1(3036);    // interrupt interval 100ms
+    setup_timer_2(T2_DIV_BY_1, 249, 16);    // PWM frequency 20KHz
+    setup_ccp1(CCP_PWM);
+    set_pwm1_duty(0);
+    enable_interrupts(GLOBAL);
+    Kp = 2;
+    Ki = 2.4;
+    Kd = 0.6;
+    set_adc_channel(1);
+    read_adc(ADC_START_ONLY);
+    while(!adc_done());
+    Setpoint = read_adc(ADC_READ_ONLY);
+    enable_interrupts(INT_TIMER0);
+    enable_interrupts(INT_TIMER1);
+    while(1)
+    {
+        //sleep();
+    }
+}
+
+#int_timer0
+void PID_calculate(void)
+{
+    int i = 0;
+    
+    set_timer0(55536);
+    set_adc_channel(0);
+    read_adc(ADC_START_ONLY);
+    while(!adc_done());
+    
+    // calculate the raw Error
+    Error = Setpoint - (signed long)read_adc(ADC_READ_ONLY);
+    
+    // calculate the proportional term
+    Tp = Kp * Error;
+    
+    // calculate the integral term
+    ErrorSum += (signed int32)Error;
+    temp_float = ErrorSum;
+    Ti = Ki * temp_float;
+    
+    // use a circular queue to save a history of the last 8 samples
+    // this will be used to calculate the differential term
+    ErrorHistory[InputIdx] = Error;
+    InputIdx++;
+    InputIdx &= 0x07;    // keep in 0..7 range
+    GetIdx = InputIdx;    // Go to the oldest values in past
+    
+    // calculate the average for the 4 oldest samples
+    for (i = 0, PrevError = 0; i < 4; i++)
+    {
+        PrevError += ErrorHistory[GetIdx];
+        GetIdx++;
+        GetIdx &= 0x07;
+    }
+    
+    // calculate the average for the 4 most recent samples
+    for (i = 0, RecError = 0; i < 4; i++)
+    {
+        RecError += ErrorHistory[GetIdx];
+        GetIdx++;
+        GetIdx &= 0x07;
+    }
+    
+    // calculate the differential term
+    DeDt = RecError - PrevError;
+    Td = Kd * DeDt;
+    
+    // calculate the desired Power
+    DesiredValue = (signed long)(Tp + Td + Ti);
+    
+    // set the correct Power
+    if(DesiredValue < 0)
+        DesiredValue = 0;
+    else if(DesiredValue > 1023)
+        DesiredValue = 1023;
+    
+    temp_float = (DesiredValue*250/1023);
+    Power = (int)temp_float;
+    //Power = (int)(DesiredValue*250/1023);
+    set_pwm1_duty(Power); // this could be pwm duty, etc
+    clear_interrupt(INT_TIMER0);
+} 
+#int_TIMER1
+void update_setpoint(void)
+{
+    set_timer1(3036);
+    set_adc_channel(1);
+    read_adc(ADC_START_ONLY);
+    while(!adc_done());
+    Setpoint = read_adc(ADC_READ_ONLY);
+    output_toggle(PIN_C3);
+    clear_interrupt(INT_TIMER1);
+}
+///////////////////////////
+///////////////////
+///////////////
