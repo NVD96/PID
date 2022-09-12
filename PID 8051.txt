@@ -429,3 +429,31 @@ void update_setpoint(void)
 ///////////////////////////
 ///////////////////
 ///////////////
+Simple PID
+
+PID = GainP * actual error + GainI * SUM(previous errors) + GainD * (actual error - last error)
+
+error = sp(set point) - pv(process value)
+
+
+float pid (float sp, float pv)
+{
+
+err_old = err;
+err = sp - pv;
+
+// note
+P_err = err;
+I_err += err_old;
+D_err = err - err_old;
+
+return 0.1*P_err + 0.3*I_err + 0.02*D_err;
+
+}
+
+
+//note. Dead zone example: if (err<2 && err>-2){err=0;}
+/////////////////////
+/////////////////
+////////////////////
+
